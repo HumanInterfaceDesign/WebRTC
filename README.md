@@ -33,7 +33,7 @@ The binary releases correspond with official Chromium releases and branches as s
 | **macOS**           |   ✅   |    ✅   |
 | **macOS Catalyst**  |   ✅   |    ✅   | 
 
-*Looking for 32 bit binaries? Please use [Version M94](https://github.com/stasel/WebRTC/releases/tag/94.0.0) or lower*
+*Looking for 32 bit binaries? Please use [Version M94](https://github.com/HumanInterfaceDesign/WebRTC/releases/tag/94.0.0) or lower*
 
 ## 🚚 Installation
 
@@ -51,7 +51,7 @@ Use the `latest` branch to get the most up to date binary:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/stasel/WebRTC.git", branch: "latest")
+    .package(url: "https://github.com/HumanInterfaceDesign/WebRTC", branch: "latest")
 ]
 ```
 
@@ -71,7 +71,7 @@ Read more about Cocoapods: https://cocoapods.org
 
 Add the following dependency to the `Cartfile` in your project:
 ```
-binary "https://raw.githubusercontent.com/stasel/WebRTC/latest/WebRTC.json"
+binary "https://github.com/HumanInterfaceDesign/WebRTC/latest/WebRTC.json"
 ```
 Then update the dependencies using the following command:
 ```
@@ -82,7 +82,7 @@ And finally, add the xcframework located in `./Carthage/Build/WebRTC.xcframework
 Read more about Carthage: https://github.com/Carthage/Carthage
 
 ### Manual
-1. Download the framework from the [releases](https://github.com/stasel/WebRTC/releases) section.
+1. Download the framework from the [releases](https://github.com/HumanInterfaceDesign/WebRTC/releases) section.
 2. Unzip the file.
 3. Add the xcframework to your target(s) embedded frameworks.
 
