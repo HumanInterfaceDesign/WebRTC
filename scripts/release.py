@@ -153,7 +153,12 @@ def createReleaseDraft(release, buildMetadata):
         'body': body
     }
     headers = {'accept': 'application/vnd.github.v3+json', 'Authorization': f'token {GITHUB_TOKEN}'}
-    return requests.post(f"https://api.github.com/repos/{GITHUB_REPO}/releases", json = fields, headers = headers).json()
+    response = requests.post(f"https://api.github.com/repos/{GITHUB_REPO}/releases", json = fields, headers = headers)
+    if response.status_code != requests.codes.created:
+        print(f"❌ Failed creating release draft: HTTP {response.status_code}")
+        print(response.text)
+        os._exit(os.EX_SOFTWARE)
+    return response.json()
 
 def uploadReleaseAsset(url, assetLocalPath, assetName):
     url = url.replace(u'{?name,label}','')
@@ -164,7 +169,8 @@ def uploadReleaseAsset(url, assetLocalPath, assetName):
     response = requests.post(url, params = params, data = fileToUpload, headers = headers)
     success = response.status_code == requests.codes.created
     if not success:
-        print(response)
+        print(f"❌ Failed uploading release asset: HTTP {response.status_code}")
+        print(response.text)
     return success
 
 def createPullRequest(release, head):
@@ -178,7 +184,8 @@ def createPullRequest(release, head):
     response = requests.post(f"https://api.github.com/repos/{GITHUB_REPO}/pulls", json = body, headers = headers)
     success = response.status_code == requests.codes.created
     if not success:
-        print(response)
+        print(f"❌ Failed creating pull request: HTTP {response.status_code}")
+        print(response.text)
     return success
 
 if __name__ == "__main__":
