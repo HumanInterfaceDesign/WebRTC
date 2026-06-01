@@ -6,6 +6,25 @@ env:
 
 on:
   workflow_dispatch:
+    inputs:
+      release_source:
+        description: "Release source"
+        required: true
+        default: "build"
+        type: choice
+        options:
+          - build
+          - manual-build-artifact
+      artifact_run_id:
+        description: "Manual build run ID when release_source is manual-build-artifact"
+        required: false
+        default: ""
+        type: string
+      artifact_name:
+        description: "Manual build artifact name"
+        required: false
+        default: "WebRTC.xcframework"
+        type: string
   schedule:
     - cron: "0 12 * * *"
 jobs:
@@ -26,7 +45,25 @@ jobs:
       # To find which Xcode version is available by which runner:
       # https://github.com/actions/runner-images/tree/main/images/macos
       - name: Setup Xcode
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.release_source == 'build' }}
         run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Validate manual build artifact input
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_source == 'manual-build-artifact' }}
+        run: |
+          if [ -z "${{ inputs.artifact_run_id }}" ]; then
+            echo "artifact_run_id is required when release_source is manual-build-artifact"
+            exit 1
+          fi
+
+      - name: Download manual build artifact
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_source == 'manual-build-artifact' }}
+        uses: actions/download-artifact@v6
+        with:
+          name: ${{ inputs.artifact_name }}
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: out
 
       - name: Set up Python 3.x
         uses: actions/setup-python@v6
@@ -38,5 +75,9 @@ jobs:
 
       - name: Running WebRTC release checks
         run: |
-          sh scripts/clean.sh
+          if [ -z "$RELEASE_ARTIFACT_DIR" ]; then
+            sh scripts/clean.sh
+          fi
           python -u scripts/release.py
+        env:
+          RELEASE_ARTIFACT_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.release_source == 'manual-build-artifact' && 'out' || '' }}

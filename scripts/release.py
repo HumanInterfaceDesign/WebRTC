@@ -1,11 +1,15 @@
 import os
 import json
 import requests
+import glob
+import hashlib
+import subprocess
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
 GITHUB_TOKEN=os.environ.get("GITHUB_TOKEN")
 GITHUB_REPO=os.environ.get("GITHUB_REPOSITORY", "stasel/WebRTC")
+RELEASE_ARTIFACT_DIR=os.environ.get("RELEASE_ARTIFACT_DIR")
 
 @dataclass
 class NextReleaseResult:
@@ -97,6 +101,45 @@ def getBuildMetadata(outputDir):
         jsonData = json.loads(f.read())
         return BuildMetadata(filename = jsonData['file'], checksum = jsonData['checksum'], commit = jsonData['commit'], branch = jsonData['branch'])
 
+def calculateChecksum(path):
+    sha256 = hashlib.sha256()
+    with open(path, "rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
+def getBranchCommit(branch):
+    result = subprocess.run(
+        ["git", "ls-remote", "https://webrtc.googlesource.com/src", f"refs/{branch}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.split()[0]
+
+def getBuildMetadataFromArtifact(outputDir, release):
+    metadataPath = os.path.join(outputDir, "metadata.json")
+    if os.path.exists(metadataPath):
+        metadata = getBuildMetadata(outputDir)
+        if metadata.branch != release.branch:
+            print(f"❌ Artifact branch {metadata.branch} does not match release branch {release.branch}")
+            os._exit(os.EX_SOFTWARE)
+        return metadata
+
+    artifacts = glob.glob(os.path.join(outputDir, "WebRTC-*.xcframework.zip"))
+    if len(artifacts) != 1:
+        print(f"❌ Expected one WebRTC artifact zip in {outputDir}, found {len(artifacts)}")
+        os._exit(os.EX_SOFTWARE)
+
+    artifact = artifacts[0]
+    print("⚠️  Artifact metadata.json was not found. Inferring checksum and commit from the release branch.")
+    return BuildMetadata(
+        filename = os.path.basename(artifact),
+        checksum = calculateChecksum(artifact),
+        commit = getBranchCommit(release.branch),
+        branch = release.branch,
+    )
+
 def createReleaseDraft(release, buildMetadata):
     body = f"Release notes: https://webrtc.googlesource.com/src.git/+log/refs/{buildMetadata.branch}/\n"
     body += f"WebRTC Branch: [{buildMetadata.branch}](https://chromium.googlesource.com/external/webrtc/+log/{buildMetadata.branch})\n"
@@ -155,18 +198,22 @@ if __name__ == "__main__":
     print(f"✅ {nextRelease}\n")
     print("✅ New Version is available to build")
 
-    # Build WebRTC Frameworks
-    print("➡️ Building WebRTC Library...")
-    buildSuccess = buildWebRTC(nextRelease.branch)
-    if not buildSuccess:
-        print("❌ WebRTC Build Failed")
-        os._exit(os.EX_SOFTWARE)
-        
-    print("✅ WebRTC build successful\n")
+    outputDir = RELEASE_ARTIFACT_DIR or "./out"
+    if RELEASE_ARTIFACT_DIR:
+        print(f"➡️ Using existing WebRTC artifact from {RELEASE_ARTIFACT_DIR}")
+        buildMetadata = getBuildMetadataFromArtifact(outputDir, nextRelease)
+    else:
+        # Build WebRTC Frameworks
+        print("➡️ Building WebRTC Library...")
+        buildSuccess = buildWebRTC(nextRelease.branch)
+        if not buildSuccess:
+            print("❌ WebRTC Build Failed")
+            os._exit(os.EX_SOFTWARE)
 
-    # Get metadata build file - it has all the information needed about the build
-    outputDir="./out"
-    buildMetadata = getBuildMetadata(outputDir)
+        print("✅ WebRTC build successful\n")
+
+        # Get metadata build file - it has all the information needed about the build
+        buildMetadata = getBuildMetadata(outputDir)
     print(buildMetadata)
 
     # Create new release draft
