@@ -38,8 +38,7 @@ def getNextRelease():
     # Get current version
     releases = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases", headers={'Authorization': f"token {GITHUB_TOKEN}"}).json()
     print(releases)
-    latestReleaseVersion = int(releases[0]["tag_name"].split(".")[0])
-    latestReleaseDate = datetime.fromisoformat(releases[0]["published_at"].replace("Z", ""))
+    latestReleaseVersion, latestReleaseDate = getLatestRelease(releases)
     print(f"Latest release: version {latestReleaseVersion}, date: {latestReleaseDate}")
 
     # Get the current stable milestone
@@ -61,6 +60,26 @@ def getNextRelease():
     nextReleaseBranch = "branch-heads/" + releases[0]["webrtc_branch"]
 
     return NextReleaseResult(version = nextReleaseVersion, releaseDate = nextReleaseDate, branch = nextReleaseBranch)
+
+def getLatestRelease(releases):
+    for release in releases:
+        releaseDate = release.get("published_at") or release.get("created_at")
+        tagName = release.get("tag_name")
+        if not tagName or not releaseDate:
+            continue
+        return int(tagName.split(".")[0]), datetime.fromisoformat(releaseDate.replace("Z", ""))
+
+    tags = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/tags", headers={'Authorization': f"token {GITHUB_TOKEN}"}).json()
+    versions = [
+        int(tag["name"].split(".")[0])
+        for tag in tags
+        if tag.get("name", "").split(".")[0].isdigit()
+    ]
+    if versions:
+        return max(versions), datetime.min
+
+    print("❌ Could not determine latest release or tag")
+    os._exit(os.EX_SOFTWARE)
 
 def isReleaseAvailable(release):
     return datetime.today() >= (release.releaseDate + timedelta(days=1))
